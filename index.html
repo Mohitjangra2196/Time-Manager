@@ -10,16 +10,20 @@
         .dept-header { background-color: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; cursor: pointer; }
         .action-btn { font-size: 10px; font-weight: 900; padding: 10px 2px; border-radius: 6px; text-align: center; color: white; transition: all 0.1s; border: 2px solid transparent; }
         .action-btn:active { transform: scale(0.9); opacity: 0.8; }
-        
-        /* Active/Done States */
         .btn-done { border-color: rgba(0,0,0,0.2); opacity: 0.9; position: relative; }
         .btn-done::after { content: '✓'; position: absolute; top: -5px; right: -2px; font-size: 8px; color: white; background: black; border-radius: 50%; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; }
-
-        .bg-duty-in { background-color: #2563eb; }    /* Blue (DI) */
-        .bg-lunch-out { background-color: #f59e0b; }  /* Orange (LO) */
-        .bg-lunch-in { background-color: #10b981; }   /* Green (LI) */
-        .bg-duty-out { background-color: #dc2626; }   /* Red (DO) */
+        .bg-duty-in { background-color: #2563eb; }
+        .bg-lunch-out { background-color: #f59e0b; }
+        .bg-lunch-in { background-color: #10b981; }
+        .bg-duty-out { background-color: #dc2626; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
+        
+        /* Modal Styles */
+        #manualModal { background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); }
+        .custom-select-list { max-height: 200px; overflow-y: auto; border: 2px solid #e2e8f0; border-radius: 0.75rem; background: white; margin-top: 4px; }
+        .custom-select-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; }
+        .custom-select-item:hover { background-color: #eff6ff; color: #1d4ed8; }
+        .custom-select-item.selected { background-color: #2563eb; color: white; }
     </style>
 </head>
 <body class="bg-gray-200 font-sans antialiased">
@@ -32,7 +36,7 @@
                 <p id="stats" class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">Initializing...</p>
             </div>
             <div class="flex items-center gap-3">
-                <button onclick="init()" class="text-[10px] bg-slate-700 px-2 py-1 rounded font-bold">REFRESH</button>
+                <button onclick="showManualModal()" class="text-[10px] bg-yellow-500 text-black px-3 py-1.5 rounded-lg font-black shadow-lg">MANUAL ENTRY</button>
                 <div id="syncIndicator" class="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
             </div>
         </div>
@@ -46,12 +50,54 @@
 
         <!-- Register Content -->
         <div id="registerBody" class="flex-1 overflow-y-auto pb-24">
-            <!-- Dynamic Content Load here -->
+            <!-- Dynamic Content -->
+        </div>
+    </div>
+
+    <!-- Manual Entry Modal -->
+    <div id="manualModal" class="fixed inset-0 z-[200] hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div class="p-6 bg-slate-800 text-white flex justify-between items-center">
+                <h2 class="text-xl font-black uppercase italic">Manual Entry Form</h2>
+                <button onclick="hideManualModal()" class="text-2xl font-bold">&times;</button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="relative">
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Select Employee (Search Name/Code)</label>
+                    <input type="text" id="m_emp_search" placeholder="Type name or code..." 
+                           class="w-full p-3 bg-slate-100 border-2 border-slate-200 rounded-xl font-bold outline-none focus:border-blue-500"
+                           oninput="filterManualEmployees()">
+                    <input type="hidden" id="m_emp_selected_code">
+                    <div id="m_emp_list" class="custom-select-list hidden absolute left-0 right-0 z-50 shadow-xl">
+                        <!-- Search results will appear here -->
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Date</label>
+                        <input type="date" id="m_date" class="w-full p-3 bg-slate-100 border-2 border-slate-200 rounded-xl font-bold outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Time</label>
+                        <input type="time" id="m_time" class="w-full p-3 bg-slate-100 border-2 border-slate-200 rounded-xl font-bold outline-none">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase mb-1">Action Type</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="setManualAction('DUTY IN', this)" class="m-act-btn p-3 rounded-xl border-2 border-slate-200 font-bold text-sm bg-blue-50 text-blue-600 border-blue-200">DUTY IN</button>
+                        <button onclick="setManualAction('LUNCH OUT', this)" class="m-act-btn p-3 rounded-xl border-2 border-slate-200 font-bold text-sm">LUNCH OUT</button>
+                        <button onclick="setManualAction('LUNCH IN', this)" class="m-act-btn p-3 rounded-xl border-2 border-slate-200 font-bold text-sm">LUNCH IN</button>
+                        <button onclick="setManualAction('DUTY OUT', this)" class="m-act-btn p-3 rounded-xl border-2 border-slate-200 font-bold text-sm">DUTY OUT</button>
+                    </div>
+                </div>
+                <button onclick="submitManualEntry()" class="w-full bg-slate-800 text-white py-4 rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-transform mt-4">SAVE ENTRY</button>
+            </div>
         </div>
     </div>
 
     <!-- Feedback Toast -->
-    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold text-sm hidden z-[100] shadow-2xl border border-slate-700 text-center">
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold text-sm hidden z-[300] shadow-2xl border border-slate-700 text-center">
     </div>
 
     <script>
@@ -60,6 +106,7 @@
         const localDB = new PouchDB('gate_logs_v3');
         let employees = [];
         let openDepts = new Set(); 
+        let selectedManualAction = 'DUTY IN';
 
         async function init() {
             try {
@@ -75,9 +122,104 @@
             syncData();
         }
 
-        // Auto Refresh every 30 seconds to update times from server
+        // Manual Entry Search Logic
+        function filterManualEmployees() {
+            const input = document.getElementById('m_emp_search');
+            const list = document.getElementById('m_emp_list');
+            const term = input.value.trim().toLowerCase();
+            
+            if (term.length === 0) {
+                list.classList.add('hidden');
+                return;
+            }
+
+            const filtered = employees.filter(e => 
+                e.EMP_NAME.toLowerCase().includes(term) || 
+                e.EMP_CODE.toLowerCase().includes(term)
+            ).slice(0, 10); // Limit results for better performance
+
+            if (filtered.length > 0) {
+                list.innerHTML = filtered.map(e => `
+                    <div class="custom-select-item" onclick="selectManualEmployee('${e.EMP_CODE}', '${e.EMP_NAME}')">
+                        <div class="font-bold text-sm">${e.EMP_NAME}</div>
+                        <div class="text-[10px] text-slate-500">${e.EMP_CODE} • ${e.DEPT_CODE || 'General'}</div>
+                    </div>
+                `).join('');
+                list.classList.remove('hidden');
+            } else {
+                list.innerHTML = '<div class="p-3 text-sm text-slate-400 font-bold">No employee found</div>';
+                list.classList.remove('hidden');
+            }
+        }
+
+        function selectManualEmployee(code, name) {
+            document.getElementById('m_emp_selected_code').value = code;
+            document.getElementById('m_emp_search').value = name;
+            document.getElementById('m_emp_list').classList.add('hidden');
+        }
+
+        // Hide list when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#m_emp_search') && !e.target.closest('#m_emp_list')) {
+                document.getElementById('m_emp_list').classList.add('hidden');
+            }
+        });
+
+        function showManualModal() {
+            const today = new Date().toISOString().split('T')[0];
+            const now = new Date().toTimeString().slice(0,5);
+            document.getElementById('m_date').value = today;
+            document.getElementById('m_time').value = now;
+            document.getElementById('m_emp_search').value = '';
+            document.getElementById('m_emp_selected_code').value = '';
+            document.getElementById('m_emp_list').classList.add('hidden');
+            document.getElementById('manualModal').classList.remove('hidden');
+        }
+
+        function hideManualModal() {
+            document.getElementById('manualModal').classList.add('hidden');
+        }
+
+        function setManualAction(action, btn) {
+            selectedManualAction = action;
+            document.querySelectorAll('.m-act-btn').forEach(b => {
+                b.classList.remove('bg-blue-50', 'text-blue-600', 'border-blue-200');
+            });
+            btn.classList.add('bg-blue-50', 'text-blue-600', 'border-blue-200');
+        }
+
+        async function submitManualEntry() {
+            const empCode = document.getElementById('m_emp_selected_code').value;
+            const date = document.getElementById('m_date').value;
+            const time = document.getElementById('m_time').value;
+            
+            if (!empCode || !date || !time) {
+                alert("Please select an employee and fill all fields!");
+                return;
+            }
+
+            const emp = employees.find(e => e.EMP_CODE === empCode);
+            const empName = emp ? emp.EMP_NAME : "Unknown";
+            const fullTimestamp = `${date} ${time}:00`;
+
+            await saveToDB(empCode, empName, selectedManualAction, fullTimestamp);
+            hideManualModal();
+            
+            const today = new Date().toISOString().split('T')[0];
+            if (date === today) {
+                const empIndex = employees.findIndex(e => e.EMP_CODE === empCode);
+                if (empIndex > -1) {
+                    const timeOnly = time;
+                    if (selectedManualAction === 'DUTY IN') employees[empIndex].IN_TIME = timeOnly;
+                    else if (selectedManualAction === 'LUNCH OUT') employees[empIndex].LUNCH_OUT = timeOnly;
+                    else if (selectedManualAction === 'LUNCH IN') employees[empIndex].LUNCH_IN = timeOnly;
+                    else if (selectedManualAction === 'DUTY OUT') employees[empIndex].OUT_TIME = timeOnly;
+                    renderRegister();
+                }
+            }
+        }
+
         setInterval(init, 30000);
-        // Sync check every 5 seconds
         setInterval(syncData, 5000);
 
         function toggleDept(dept) {
@@ -89,16 +231,12 @@
         function renderRegister() {
             const body = document.getElementById('registerBody');
             const searchTerm = document.getElementById('search').value.trim().toLowerCase();
-            
             const depts = [...new Set(employees.map(e => e.DEPT_CODE))];
-            
             let html = '';
             depts.forEach(dept => {
                 const deptEmps = employees.filter(e => e.DEPT_CODE === dept && e.EMP_NAME.toLowerCase().includes(searchTerm));
-                
                 if (deptEmps.length > 0) {
                     const isOpen = openDepts.has(dept) || searchTerm.length > 0;
-                    
                     html += `
                         <div onclick="toggleDept('${dept}')" class="dept-header px-4 py-4 flex justify-between items-center sticky top-[125px] z-30">
                             <span class="text-sm font-black text-slate-800 uppercase tracking-widest">${dept || 'GENERAL'}</span>
@@ -109,7 +247,6 @@
                         </div>
                         <div class="${isOpen ? 'block' : 'hidden'} bg-slate-50">
                     `;
-                    
                     deptEmps.forEach(emp => {
                         html += `
                             <div class="flex items-center justify-between p-3 border-b border-white bg-white hover:bg-blue-50">
@@ -118,10 +255,10 @@
                                     <p class="text-[10px] text-slate-500 font-bold leading-none mt-1">${emp.EMP_CODE}</p>
                                 </div>
                                 <div class="w-3/5 grid grid-cols-4 gap-1">
-                                    ${renderButton(emp, 'DUTY IN', 'bg-duty-in', 'In Time', emp.IN_TIME)}
-                                    ${renderButton(emp, 'LUNCH OUT', 'bg-lunch-out', 'Lunch Out', emp.LUNCH_OUT)}
-                                    ${renderButton(emp, 'LUNCH IN', 'bg-lunch-in', 'Lunch In', emp.LUNCH_IN)}
-                                    ${renderButton(emp, 'DUTY OUT', 'bg-duty-out', 'Out Time', emp.OUT_TIME)}
+                                    ${renderButton(emp, 'DUTY IN', 'bg-duty-in', 'DI', emp.IN_TIME)}
+                                    ${renderButton(emp, 'LUNCH OUT', 'bg-lunch-out', 'LO', emp.LUNCH_OUT)}
+                                    ${renderButton(emp, 'LUNCH IN', 'bg-lunch-in', 'LI', emp.LUNCH_IN)}
+                                    ${renderButton(emp, 'DUTY OUT', 'bg-duty-out', 'DO', emp.OUT_TIME)}
                                 </div>
                             </div>
                         `;
@@ -144,13 +281,11 @@
         async function logQuick(id, name, action) {
             const now = new Date();
             const timeOnly = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
-            const timestamp = now.getFullYear() + '-' + 
+            const fullTimestamp = now.getFullYear() + '-' + 
                               String(now.getMonth() + 1).padStart(2, '0') + '-' + 
                               String(now.getDate()).padStart(2, '0') + ' ' + 
-                              timeOnly + ':' + 
-                              String(now.getSeconds()).padStart(2, '0');
+                              timeOnly + ':' + String(now.getSeconds()).padStart(2, '0');
 
-            // Update UI immediately (Optimistic Update)
             const empIndex = employees.findIndex(e => e.EMP_CODE === id);
             if (empIndex > -1) {
                 if (action === 'DUTY IN') employees[empIndex].IN_TIME = timeOnly;
@@ -160,6 +295,11 @@
                 renderRegister();
             }
 
+            await saveToDB(id, name, action, fullTimestamp);
+            syncData();
+        }
+
+        async function saveToDB(id, name, action, timestamp) {
             const entry = {
                 _id: new Date().getTime().toString(),
                 emp_id: id,
@@ -168,33 +308,25 @@
                 timestamp: timestamp,
                 synced: false
             };
-
             await localDB.put(entry);
-            
             const toast = document.getElementById('toast');
-            toast.innerHTML = `<div class="text-[10px] opacity-70">${name}</div><div class="text-lg text-yellow-400">${action} @ ${timeOnly}</div>`;
+            toast.innerHTML = `<div class="text-[10px] opacity-70">${name}</div><div class="text-lg text-yellow-400">${action} DONE!</div>`;
             toast.classList.remove('hidden');
             setTimeout(() => toast.classList.add('hidden'), 2000);
-
-            syncData();
         }
 
         async function syncData() {
             const indicator = document.getElementById('syncIndicator');
             const stats = document.getElementById('stats');
-            
             try {
                 const result = await localDB.allDocs({include_docs: true});
                 const pending = result.rows.filter(r => !r.doc.synced);
                 stats.innerText = pending.length > 0 ? `${pending.length} PENDING SYNC` : 'ALL DATA SYNCED';
-
                 if (pending.length === 0) {
                     indicator.className = "h-3 w-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
                     return;
                 }
-
                 indicator.className = "h-3 w-3 rounded-full bg-orange-500 animate-pulse";
-
                 for (let row of pending) {
                     const log = row.doc;
                     try {
@@ -211,9 +343,7 @@
                             log.synced = true;
                             await localDB.put(log);
                         }
-                    } catch (err) {
-                        console.error("Sync per-row error:", err);
-                    }
+                    } catch (err) { console.error("Sync error:", err); }
                 }
             } catch (e) {
                 indicator.className = "h-3 w-3 rounded-full bg-red-500";
