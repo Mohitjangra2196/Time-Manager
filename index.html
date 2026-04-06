@@ -8,14 +8,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .dept-header { background-color: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; cursor: pointer; }
-        .action-btn { font-size: 10px; font-weight: 900; padding: 8px 4px; border-radius: 6px; text-align: center; color: white; transition: all 0.1s; }
+        .action-btn { font-size: 10px; font-weight: 900; padding: 10px 4px; border-radius: 6px; text-align: center; color: white; transition: all 0.1s; }
         .action-btn:active { transform: scale(0.9); opacity: 0.8; }
-        .bg-duty-in { background-color: #2563eb; }    /* Blue */
-        .bg-lunch-out { background-color: #f59e0b; }  /* Orange */
-        .bg-lunch-in { background-color: #10b981; }   /* Green */
-        .bg-duty-out { background-color: #dc2626; }   /* Red */
+        .bg-duty-in { background-color: #2563eb; }    /* Blue (DI) */
+        .bg-lunch-out { background-color: #f59e0b; }  /* Orange (LO) */
+        .bg-lunch-in { background-color: #10b981; }   /* Green (LI) */
+        .bg-duty-out { background-color: #dc2626; }   /* Red (DO) */
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .hidden-rows { display: none; }
     </style>
 </head>
 <body class="bg-gray-200 font-sans antialiased">
@@ -24,16 +23,16 @@
         <!-- App Bar -->
         <div class="p-4 bg-slate-800 text-white flex justify-between items-center sticky top-0 z-50">
             <div>
-                <h1 class="text-lg font-bold leading-none uppercase">Gate Register</h1>
-                <p id="stats" class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">Syncing...</p>
+                <h1 class="text-lg font-bold leading-none uppercase tracking-tight">Gate Register</h1>
+                <p id="stats" class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">Initializing...</p>
             </div>
             <div id="syncIndicator" class="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
         </div>
 
         <!-- Search Bar -->
         <div class="p-2 bg-slate-100 border-b sticky top-[60px] z-40">
-            <input type="text" id="search" placeholder="Search Name..." 
-                   class="w-full p-3 rounded-xl border-2 border-slate-200 outline-none focus:border-blue-500 font-bold"
+            <input type="text" id="search" placeholder="Search Employee Name..." 
+                   class="w-full p-3 rounded-xl border-2 border-slate-200 outline-none focus:border-blue-500 font-bold text-lg"
                    oninput="renderRegister()">
         </div>
 
@@ -44,7 +43,7 @@
     </div>
 
     <!-- Feedback Toast -->
-    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full font-bold text-sm hidden z-[100] shadow-2xl">
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold text-sm hidden z-[100] shadow-2xl border border-slate-700">
         Action Recorded!
     </div>
 
@@ -53,22 +52,13 @@
         const API_URL = `http://${SERVER_IP}:5000`;
         const localDB = new PouchDB('gate_logs_v3');
         let employees = [];
-        let openDepts = new Set(); // Track which depts are expanded
+        let openDepts = new Set(); 
 
         async function init() {
             try {
                 const res = await fetch(`${API_URL}/employees`);
                 if (res.ok) {
                     employees = await res.json();
-                    
-                    // Nayi query ke hisab se unique departments nikalna
-                    // Sorting is handled by Python/Oracle ORDER BY
-                    const depts = [...new Set(employees.map(e => e.DEPT_CODE))];
-                    
-                    if(depts.length > 0) {
-                        // Pehla department by default open rakhenge
-                        openDepts.add(depts[0]);
-                    }
                     renderRegister();
                 }
             } catch (e) {
@@ -87,9 +77,8 @@
 
         function renderRegister() {
             const body = document.getElementById('registerBody');
-            const searchTerm = document.getElementById('search').value.toLowerCase();
+            const searchTerm = document.getElementById('search').value.trim().toLowerCase();
             
-            // Get unique departments in the order they appear from Oracle
             const depts = [];
             employees.forEach(e => {
                 if (!depts.includes(e.DEPT_CODE)) depts.push(e.DEPT_CODE);
@@ -100,28 +89,32 @@
                 const deptEmps = employees.filter(e => e.DEPT_CODE === dept && e.EMP_NAME.toLowerCase().includes(searchTerm));
                 
                 if (deptEmps.length > 0) {
+                    // Search hone par saare matching depts khul jayenge, warna manually jo khola hai wahi dikhega
                     const isOpen = openDepts.has(dept) || searchTerm.length > 0;
                     
                     html += `
-                        <div onclick="toggleDept('${dept}')" class="dept-header px-4 py-3 flex justify-between items-center sticky top-[125px] z-30">
-                            <span class="text-xs font-black text-slate-700 uppercase tracking-wider">${dept || 'GENERAL'}</span>
-                            <span class="text-slate-400 font-bold">${isOpen ? '▲' : '▼'}</span>
+                        <div onclick="toggleDept('${dept}')" class="dept-header px-4 py-4 flex justify-between items-center sticky top-[125px] z-30">
+                            <span class="text-sm font-black text-slate-800 uppercase tracking-widest">${dept || 'GENERAL'}</span>
+                            <div class="flex items-center gap-2">
+                                <span class="bg-slate-300 text-slate-700 text-[10px] px-2 py-0.5 rounded-full font-bold">${deptEmps.length}</span>
+                                <span class="text-slate-400 font-bold transition-transform ${isOpen ? 'rotate-180' : ''}">▼</span>
+                            </div>
                         </div>
-                        <div class="${isOpen ? '' : 'hidden'}">
+                        <div class="${isOpen ? 'block' : 'hidden'} bg-slate-50">
                     `;
                     
                     deptEmps.forEach(emp => {
                         html += `
-                            <div class="flex items-center justify-between p-3 border-b border-slate-50 bg-white">
-                                <div class="w-1/3 overflow-hidden">
-                                    <h3 class="font-bold text-slate-800 text-[12px] uppercase truncate">${emp.EMP_NAME}</h3>
-                                    <p class="text-[9px] text-slate-400 font-bold leading-none mt-1">${emp.EMP_CODE}</p>
+                            <div class="flex items-center justify-between p-3 border-b border-white bg-white hover:bg-blue-50">
+                                <div class="w-2/5 pr-2">
+                                    <h3 class="font-bold text-slate-800 text-[13px] uppercase truncate">${emp.EMP_NAME}</h3>
+                                    <p class="text-[10px] text-slate-500 font-bold leading-none mt-1">${emp.EMP_CODE}</p>
                                 </div>
-                                <div class="w-2/3 grid grid-cols-4 gap-1">
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'DUTY IN')" class="action-btn bg-duty-in">DI</button>
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'LUNCH OUT')" class="action-btn bg-lunch-out">LO</button>
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'LUNCH IN')" class="action-btn bg-lunch-in">LI</button>
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'DUTY OUT')" class="action-btn bg-duty-out">DO</button>
+                                <div class="w-3/5 grid grid-cols-4 gap-1.5">
+                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'DUTY IN')" class="action-btn bg-duty-in shadow-sm shadow-blue-200">DI</button>
+                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'LUNCH OUT')" class="action-btn bg-lunch-out shadow-sm shadow-orange-200">LO</button>
+                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'LUNCH IN')" class="action-btn bg-lunch-in shadow-sm shadow-green-200">LI</button>
+                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'DUTY OUT')" class="action-btn bg-duty-out shadow-sm shadow-red-200">DO</button>
                                 </div>
                             </div>
                         `;
@@ -129,7 +122,7 @@
                     html += `</div>`;
                 }
             });
-            body.innerHTML = html || '<div class="p-10 text-center text-slate-400">No employees found</div>';
+            body.innerHTML = html || '<div class="p-20 text-center text-slate-400 font-bold">No results matching your search</div>';
         }
 
         async function logQuick(id, name, action) {
@@ -153,9 +146,9 @@
             await localDB.put(entry);
             
             const toast = document.getElementById('toast');
-            toast.innerText = `${name} - ${action} OK`;
+            toast.innerHTML = `<div class="text-center"><div class="text-[10px] opacity-70">${name}</div><div class="text-lg text-yellow-400">${action} DONE!</div></div>`;
             toast.classList.remove('hidden');
-            setTimeout(() => toast.classList.add('hidden'), 1500);
+            setTimeout(() => toast.classList.add('hidden'), 2000);
 
             syncData();
         }
@@ -167,7 +160,7 @@
             try {
                 const result = await localDB.allDocs({include_docs: true});
                 const pending = result.rows.filter(r => !r.doc.synced);
-                stats.innerText = `${pending.length} PENDING SYNC`;
+                stats.innerText = pending.length > 0 ? `${pending.length} PENDING SYNC` : 'ALL DATA SYNCED';
 
                 if (pending.length === 0) {
                     indicator.className = "h-3 w-3 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]";
@@ -178,23 +171,27 @@
 
                 for (let row of pending) {
                     const log = row.doc;
-                    const res = await fetch(`${API_URL}/sync`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({
-                            emp_id: log.emp_id,
-                            action: log.action,
-                            timestamp: log.timestamp
-                        })
-                    });
-                    if (res.ok) {
-                        log.synced = true;
-                        await localDB.put(log);
+                    try {
+                        const res = await fetch(`${API_URL}/sync`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                emp_id: log.emp_id,
+                                action: log.action,
+                                timestamp: log.timestamp
+                            })
+                        });
+                        if (res.ok) {
+                            log.synced = true;
+                            await localDB.put(log);
+                        }
+                    } catch (err) {
+                        console.error("Sync per-row error:", err);
                     }
                 }
             } catch (e) {
                 indicator.className = "h-3 w-3 rounded-full bg-red-500";
-                stats.innerText = "OFFLINE MODE";
+                stats.innerText = "SERVER OFFLINE";
             }
         }
 
