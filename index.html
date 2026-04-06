@@ -8,8 +8,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .dept-header { background-color: #f1f5f9; border-top: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; cursor: pointer; }
-        .action-btn { font-size: 10px; font-weight: 900; padding: 10px 4px; border-radius: 6px; text-align: center; color: white; transition: all 0.1s; }
+        .action-btn { font-size: 10px; font-weight: 900; padding: 10px 2px; border-radius: 6px; text-align: center; color: white; transition: all 0.1s; border: 2px solid transparent; }
         .action-btn:active { transform: scale(0.9); opacity: 0.8; }
+        
+        /* Active/Done States */
+        .btn-done { border-color: rgba(0,0,0,0.2); opacity: 0.9; position: relative; }
+        .btn-done::after { content: '✓'; position: absolute; top: -5px; right: -2px; font-size: 8px; color: white; background: black; border-radius: 50%; width: 12px; height: 12px; display: flex; align-items: center; justify-content: center; }
+
         .bg-duty-in { background-color: #2563eb; }    /* Blue (DI) */
         .bg-lunch-out { background-color: #f59e0b; }  /* Orange (LO) */
         .bg-lunch-in { background-color: #10b981; }   /* Green (LI) */
@@ -26,7 +31,10 @@
                 <h1 class="text-lg font-bold leading-none uppercase tracking-tight">Gate Register</h1>
                 <p id="stats" class="text-[10px] text-slate-400 mt-1 uppercase tracking-widest font-bold">Initializing...</p>
             </div>
-            <div id="syncIndicator" class="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+            <div class="flex items-center gap-3">
+                <button onclick="init()" class="text-[10px] bg-slate-700 px-2 py-1 rounded font-bold">REFRESH</button>
+                <div id="syncIndicator" class="h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div>
+            </div>
         </div>
 
         <!-- Search Bar -->
@@ -43,8 +51,7 @@
     </div>
 
     <!-- Feedback Toast -->
-    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold text-sm hidden z-[100] shadow-2xl border border-slate-700">
-        Action Recorded!
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl font-bold text-sm hidden z-[100] shadow-2xl border border-slate-700 text-center">
     </div>
 
     <script>
@@ -65,9 +72,13 @@
                 console.error("Fetch error:", e);
                 renderRegister(); 
             }
-            setInterval(syncData, 5000);
             syncData();
         }
+
+        // Auto Refresh every 30 seconds to update times from server
+        setInterval(init, 30000);
+        // Sync check every 5 seconds
+        setInterval(syncData, 5000);
 
         function toggleDept(dept) {
             if (openDepts.has(dept)) openDepts.delete(dept);
@@ -79,17 +90,13 @@
             const body = document.getElementById('registerBody');
             const searchTerm = document.getElementById('search').value.trim().toLowerCase();
             
-            const depts = [];
-            employees.forEach(e => {
-                if (!depts.includes(e.DEPT_CODE)) depts.push(e.DEPT_CODE);
-            });
+            const depts = [...new Set(employees.map(e => e.DEPT_CODE))];
             
             let html = '';
             depts.forEach(dept => {
                 const deptEmps = employees.filter(e => e.DEPT_CODE === dept && e.EMP_NAME.toLowerCase().includes(searchTerm));
                 
                 if (deptEmps.length > 0) {
-                    // Search hone par saare matching depts khul jayenge, warna manually jo khola hai wahi dikhega
                     const isOpen = openDepts.has(dept) || searchTerm.length > 0;
                     
                     html += `
@@ -107,14 +114,14 @@
                         html += `
                             <div class="flex items-center justify-between p-3 border-b border-white bg-white hover:bg-blue-50">
                                 <div class="w-2/5 pr-2">
-                                    <h3 class="font-bold text-slate-800 text-[13px] uppercase truncate">${emp.EMP_NAME}</h3>
+                                    <h3 class="font-bold text-slate-800 text-[12px] uppercase truncate">${emp.EMP_NAME}</h3>
                                     <p class="text-[10px] text-slate-500 font-bold leading-none mt-1">${emp.EMP_CODE}</p>
                                 </div>
-                                <div class="w-3/5 grid grid-cols-4 gap-1.5">
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'DUTY IN')" class="action-btn bg-duty-in shadow-sm shadow-blue-200">DI</button>
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'LUNCH OUT')" class="action-btn bg-lunch-out shadow-sm shadow-orange-200">LO</button>
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'LUNCH IN')" class="action-btn bg-lunch-in shadow-sm shadow-green-200">LI</button>
-                                    <button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', 'DUTY OUT')" class="action-btn bg-duty-out shadow-sm shadow-red-200">DO</button>
+                                <div class="w-3/5 grid grid-cols-4 gap-1">
+                                    ${renderButton(emp, 'DUTY IN', 'bg-duty-in', 'DI', emp.IN_TIME)}
+                                    ${renderButton(emp, 'LUNCH OUT', 'bg-lunch-out', 'LO', emp.LUNCH_OUT)}
+                                    ${renderButton(emp, 'LUNCH IN', 'bg-lunch-in', 'LI', emp.LUNCH_IN)}
+                                    ${renderButton(emp, 'DUTY OUT', 'bg-duty-out', 'DO', emp.OUT_TIME)}
                                 </div>
                             </div>
                         `;
@@ -125,14 +132,33 @@
             body.innerHTML = html || '<div class="p-20 text-center text-slate-400 font-bold">No results matching your search</div>';
         }
 
+        function renderButton(emp, action, colorClass, label, time) {
+            const displayLabel = time ? time : label;
+            const extraClass = time ? 'btn-done' : '';
+            return `<button onclick="logQuick('${emp.EMP_CODE}', '${emp.EMP_NAME}', '${action}')" 
+                            class="action-btn ${colorClass} ${extraClass} shadow-sm">
+                        ${displayLabel}
+                    </button>`;
+        }
+
         async function logQuick(id, name, action) {
             const now = new Date();
+            const timeOnly = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
             const timestamp = now.getFullYear() + '-' + 
                               String(now.getMonth() + 1).padStart(2, '0') + '-' + 
                               String(now.getDate()).padStart(2, '0') + ' ' + 
-                              String(now.getHours()).padStart(2, '0') + ':' + 
-                              String(now.getMinutes()).padStart(2, '0') + ':' + 
+                              timeOnly + ':' + 
                               String(now.getSeconds()).padStart(2, '0');
+
+            // Update UI immediately (Optimistic Update)
+            const empIndex = employees.findIndex(e => e.EMP_CODE === id);
+            if (empIndex > -1) {
+                if (action === 'DUTY IN') employees[empIndex].IN_TIME = timeOnly;
+                else if (action === 'LUNCH OUT') employees[empIndex].LUNCH_OUT = timeOnly;
+                else if (action === 'LUNCH IN') employees[empIndex].LUNCH_IN = timeOnly;
+                else if (action === 'DUTY OUT') employees[empIndex].OUT_TIME = timeOnly;
+                renderRegister();
+            }
 
             const entry = {
                 _id: new Date().getTime().toString(),
@@ -146,7 +172,7 @@
             await localDB.put(entry);
             
             const toast = document.getElementById('toast');
-            toast.innerHTML = `<div class="text-center"><div class="text-[10px] opacity-70">${name}</div><div class="text-lg text-yellow-400">${action} DONE!</div></div>`;
+            toast.innerHTML = `<div class="text-[10px] opacity-70">${name}</div><div class="text-lg text-yellow-400">${action} @ ${timeOnly}</div>`;
             toast.classList.remove('hidden');
             setTimeout(() => toast.classList.add('hidden'), 2000);
 
